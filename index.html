@@ -98,20 +98,26 @@
                 </form>
             </div>
 
-            <!-- CSV 備份與匯入管理區塊 -->
-            <div class="bg-indigo-50/60 border border-indigo-100 p-3 rounded-2xl flex items-center justify-between text-xs space-x-2">
-                <span class="font-semibold text-indigo-900 flex items-center gap-1.5">
-                    <i class="fa-solid fa-file-csv text-indigo-600 text-sm"></i>
-                    Excel 備份管理
-                </span>
-                <div class="flex items-center space-x-1.5">
-                    <button onclick="exportToCSV()" class="bg-white hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-xl font-medium border border-indigo-200 shadow-sm transition-all active:scale-95 flex items-center space-x-1">
-                        <i class="fa-solid fa-download text-xs"></i>
-                        <span>匯出 CSV</span>
+            <!-- CSV 備份與雲端同步區塊 -->
+            <div class="bg-indigo-50/60 border border-indigo-100 p-3 rounded-2xl space-y-2 text-xs">
+                <div class="flex items-center justify-between">
+                    <span class="font-semibold text-indigo-900 flex items-center gap-1.5">
+                        <i class="fa-solid fa-file-csv text-indigo-600 text-sm"></i>
+                        Excel / 雲端同步
+                    </span>
+                    <button onclick="loadFromGitHubCSV(true)" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-xl font-medium shadow-sm transition-all active:scale-95 flex items-center space-x-1">
+                        <i class="fa-solid fa-cloud-arrow-down text-xs"></i>
+                        <span>同步 words.csv</span>
                     </button>
-                    <label class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl font-medium shadow-sm transition-all active:scale-95 flex items-center space-x-1 cursor-pointer">
+                </div>
+                <div class="flex items-center justify-end space-x-1.5 pt-1 border-t border-indigo-100/80">
+                    <button onclick="exportToCSV()" class="flex-1 justify-center bg-white hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-xl font-medium border border-indigo-200 shadow-sm transition-all active:scale-95 flex items-center space-x-1">
+                        <i class="fa-solid fa-download text-xs"></i>
+                        <span>匯出備份 CSV</span>
+                    </button>
+                    <label class="flex-1 justify-center bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl font-medium shadow-sm transition-all active:scale-95 flex items-center space-x-1 cursor-pointer">
                         <i class="fa-solid fa-upload text-xs"></i>
-                        <span>匯入 CSV</span>
+                        <span>手動匯入 CSV</span>
                         <input type="file" id="csv-file-input" accept=".csv" onchange="importFromCSV(event)" class="hidden">
                     </label>
                 </div>
@@ -217,9 +223,11 @@
         let isCardFlipped = false;
 
         // 初始化
-        window.onload = function() {
+        window.onload = async function() {
             loadVocabFromStorage();
             renderWordList();
+            // 開啟網頁時自動嘗試從 GitHub 同目錄讀取 words.csv (靜默模式)
+            await loadFromGitHubCSV(false);
         };
 
         // 從 LocalStorage 載入資料
@@ -264,21 +272,15 @@
             const quizView = document.getElementById('view-quiz');
 
             if (tab === 'list') {
-                // 樣式切換
                 listBtn.className = "flex-1 py-2 rounded-lg text-center transition-all bg-white text-indigo-700 shadow-sm font-semibold";
                 quizBtn.className = "flex-1 py-2 rounded-lg text-center transition-all text-indigo-100 hover:text-white";
-                
-                // 視圖切換
                 listView.classList.remove('hidden');
                 quizView.classList.add('hidden');
             } else {
                 quizBtn.className = "flex-1 py-2 rounded-lg text-center transition-all bg-white text-indigo-700 shadow-sm font-semibold";
                 listBtn.className = "flex-1 py-2 rounded-lg text-center transition-all text-indigo-100 hover:text-white";
-                
                 listView.classList.add('hidden');
                 quizView.classList.remove('hidden');
-                
-                // 開始測驗模式
                 startQuizMode();
             }
         }
@@ -301,11 +303,10 @@
                 mastered: false
             };
 
-            vocabList.unshift(newWord); // 加入至最前面
+            vocabList.unshift(newWord);
             saveVocabToStorage();
             renderWordList();
 
-            // 清空輸入框
             enInput.value = '';
             cnInput.value = '';
             enInput.focus();
@@ -329,7 +330,6 @@
 
             container.innerHTML = '';
 
-            // 過濾搜尋結果
             const filteredList = vocabList.filter(item => 
                 item.en.toLowerCase().includes(searchKeyword) || 
                 item.cn.toLowerCase().includes(searchKeyword)
@@ -376,21 +376,15 @@
 
             warning.classList.add('hidden');
             wrapper.classList.remove('hidden');
-
-            // 隨機選一個
             nextRandomQuizCard();
         }
 
         function nextRandomQuizCard() {
-            // 重置翻牌狀態
             resetCardFlip();
-
-            // 隨機選取單字
             const randomIndex = Math.floor(Math.random() * vocabList.length);
             currentQuizIndex = randomIndex;
             const item = vocabList[currentQuizIndex];
 
-            // 填入內容
             document.getElementById('card-english').textContent = item.en;
             document.getElementById('card-chinese').textContent = item.cn;
             document.getElementById('quiz-progress-text').textContent = `隨機抽考中 (${vocabList.length} 個單字)`;
@@ -416,7 +410,6 @@
             if (isMastered) {
                 showToast("好棒！繼續保持！", "success");
             }
-            // 延遲一下讓感受更順暢
             setTimeout(() => {
                 nextRandomQuizCard();
             }, 150);
@@ -431,10 +424,10 @@
 
         function speakText(text) {
             if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel(); // 停止先前的發音
+                window.speechSynthesis.cancel();
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = 'en-US';
-                utterance.rate = 0.9; // 語速稍微放慢
+                utterance.rate = 0.9;
                 window.speechSynthesis.speak(utterance);
             } else {
                 showToast("您的瀏覽器不支援語音朗讀", "info");
@@ -461,10 +454,10 @@
             setTimeout(() => {
                 toast.classList.remove('opacity-100');
                 toast.classList.add('opacity-0', 'pointer-events-none');
-            }, 2000);
+            }, 2500);
         }
 
-        // HTML 轉義字元防護 (XSS Safety)
+        // HTML 轉義字元防護
         function escapeHtml(str) {
             return str
                 .replace(/&/g, "&amp;")
@@ -474,121 +467,80 @@
                 .replace(/'/g, "&#039;");
         }
 
-        // ==================== CSV 匯出 / 匯入備份邏輯 ====================
+        // ==================== CSV 解析與備份同步邏輯 ====================
 
-        // 匯出 CSV 檔 (可在 Excel 打開且無亂碼)
+        // 共用：將 CSV 純文字解析成單字物件陣列
+        function parseCSVText(text) {
+            // 去除可能存在的 UTF-8 BOM
+            const cleanText = text.replace(/^\uFEFF/, '');
+            const lines = cleanText.split(/\r\n|\n/);
+            const parsedWords = [];
+
+            lines.forEach((line, index) => {
+                if (!line.trim()) return;
+                
+                // 處理雙引號包裹的逗號 (例如: "apple, red","蘋果")
+                const cols = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || line.split(',');
+                if (cols.length >= 2) {
+                    let en = cols[0].replace(/^"|"$/g, '').replace(/""/g, '"').trim();
+                    let cn = cols[1].replace(/^"|"$/g, '').replace(/""/g, '"').trim();
+
+                    // 忽略標題列
+                    if (index === 0 && (en.toLowerCase() === '英文' || en.toLowerCase() === 'english')) {
+                        return;
+                    }
+
+                    if (en && cn) {
+                        parsedWords.push({
+                            id: Date.now() + Math.random(),
+                            en: en,
+                            cn: cn,
+                            mastered: false
+                        });
+                    }
+                }
+            });
+            return parsedWords;
+        }
+
+        // 匯出 CSV 檔
         function exportToCSV() {
             if (vocabList.length === 0) {
                 showToast("目前沒有單字可以匯出喔！", "info");
                 return;
             }
 
-            // 建立 CSV 內容 (標題列 + 內容)
             let csvContent = "英文,中文\n";
-
             vocabList.forEach(item => {
-                // 處理可能包含逗號或雙引號的文字
                 let en = item.en.replace(/"/g, '""');
                 let cn = item.cn.replace(/"/g, '""');
                 csvContent += `"${en}","${cn}"\n`;
             });
 
-            // \uFEFF 是 UTF-8 BOM，讓 Excel 開啟時自動識別 UTF-8 編碼不跳亂碼
             const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             
             const link = document.createElement("a");
             link.setAttribute("href", url);
-            link.setAttribute("download", `口袋單字本備份_${new Date().toISOString().slice(0,10)}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            showToast("成功匯出 CSV 備份檔！", "success");
-        }
-
-        // 匯入 CSV 檔還原或批次新增
-        function importFromCSV(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const text = e.target.result;
-                    const lines = text.split(/\r\n|\n/);
-                    const newWords = [];
-
-                    lines.forEach((line, index) => {
-                        if (!line.trim()) return;
-                        
-                        // 簡單解析 CSV (處理引號與逗號)
-                        const cols = line.match(/(?:\"[^\"]*\"|[^\",\s]+)/g) || line.split(',');
-                        if (cols.length >= 2) {
-                            let en = cols[0].replace(/^"|"$/g, '').trim();
-                            let cn = cols[1].replace(/^"|"$/g, '').trim();
-
-                            // 忽略標題列 (例如: "英文","中文" 或 "English","Chinese")
-                            if (index === 0 && (en.toLowerCase() === '英文' || en.toLowerCase() === 'english')) {
-                                return;
-                            }
-
-                            if (en && cn) {
-                                newWords.push({
-                                    id: Date.now() + Math.random(),
-                                    en: en,
-                                    cn: cn,
-                                    mastered: false
-                                });
-                            }
-                        }
-                    });
-
-                    if (newWords.length === 0) {
-                        showToast("無法解析 CSV 內容，請確認格式正確", "info");
-                        return;
-                    }
-
-                    // 讓使用者選擇【合併】還是【覆蓋】
-                    const mode = window.confirm(`成功讀取到 ${newWords.length} 個單字！\n\n【確定】= 合併至現有單字本\n【取消】= 覆蓋現有單字本`);
+            link.setAttribute("download", `口袋單字本備份_${new Date().toISOString().slice(0,10)}.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link);  showToast("成功匯出 CSV 備份檔！", "success"); }  // 手動匯入本機 CSV 檔 function importFromCSV(event) { const file = event.target.files[0]; if (!file) return;  const reader = new FileReader(); reader.onload = function(e) { try { const newWords = parseCSVText(e.target.result);  if (newWords.length === 0) { showToast("無法解析 CSV 內容，請確認格式正確", "info"); return; }  const mode = window.confirm(`成功讀取到 ${newWords.length} 個單字！\n\n【確定】= 合併至現有單字本\n【取消】= 覆蓋現有單字本`);
                     
                     if (mode) {
-                        // 合併 (加到最前面)
                         vocabList = [...newWords, ...vocabList];
                     } else {
-                        // 覆蓋
                         vocabList = newWords;
                     }
 
                     saveVocabToStorage();
                     renderWordList();
-                    showToast(`已成功匯入 ${newWords.length} 個單字！`, "success");
-
-                } catch (err) {
-                    console.error(err);
-                    showToast("讀取檔案失敗，請檢查 CSV 格式", "info");
+                    showToast(`已成功匯入 ${newWords.length} 個單字！`, "success");  } catch (err) { console.error(err); showToast("讀取檔案失敗，請檢查 CSV 格式", "info"); } event.target.value = ''; };  reader.readAsText(file, "UTF-8"); }  // 從 GitHub 同目錄自動讀取 words.csv 並智慧合併（不重複） async function loadFromGitHubCSV(isManual = false) { try { // 加上時間戳記避免手機瀏覽器快取舊檔 const response = await fetch('./words.csv?t=' + new Date().getTime()); if (!response.ok) { if (isManual) showToast("GitHub 上找不到 words.csv 檔案", "info"); return; }  const csvText = await response.text(); const remoteWords = parseCSVText(csvText);  if (remoteWords.length === 0) { if (isManual) showToast("words.csv 裡面沒有有效單字", "info"); return; }  // 過濾掉已經存在於本地單字庫的英文單字（避免每次開網頁重複疊加） const existingSet = new Set(vocabList.map(w => w.en.toLowerCase())); const trulyNewWords = remoteWords.filter(w => !existingSet.has(w.en.toLowerCase()));  if (trulyNewWords.length > 0) { vocabList = [...trulyNewWords, ...vocabList]; saveVocabToStorage(); renderWordList(); showToast(`已從 GitHub 同步 ${trulyNewWords.length} 個新單字！`, "success");
+                } else if (isManual) {
+                    showToast("單字庫已是最新狀態，無新增單字", "info");
                 }
-
-                // 清空 input 讓同一個檔案可以重複選取
-                event.target.value = '';
-            };
-
-            reader.readAsText(file, "UTF-8");
+            } catch (error) {
+                console.error('讀取 GitHub CSV 失敗:', error);
+                if (isManual) showToast("同步失敗（若在本機直接雙擊開啟 HTML 屬正常現象）", "info");
+            }
         }
-        async function loadFromGitHubCSV() {
-          try {
-            // 加上時間戳記 (?t=...) 避免手機瀏覽器快取到舊的檔案
-            const response = await fetch('./words.csv?t=' + new Date().getTime());
-            if (!response.ok) throw new Error('找不到 words.csv 檔案');
-            
-            const csvText = await response.text();
-            // 接著呼叫原本的 CSV 解析函式，把文字轉成單字陣列並存入畫面即可
-            parseAndMergeCSV(csvText); 
-            alert('已成功從 GitHub 同步最新單字！');
-          } catch (error) {
-            console.error('讀取失敗:', error);
-          }
-        }      
     </script>
 </body>
 </html>
