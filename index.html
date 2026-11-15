@@ -471,7 +471,6 @@
 
         // 共用：將 CSV 純文字解析成單字物件陣列
         function parseCSVText(text) {
-            // 去除可能存在的 UTF-8 BOM
             const cleanText = text.replace(/^\uFEFF/, '');
             const lines = cleanText.split(/\r\n|\n/);
             const parsedWords = [];
@@ -479,13 +478,11 @@
             lines.forEach((line, index) => {
                 if (!line.trim()) return;
                 
-                // 處理雙引號包裹的逗號 (例如: "apple, red","蘋果")
                 const cols = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || line.split(',');
                 if (cols.length >= 2) {
                     let en = cols[0].replace(/^"|"$/g, '').replace(/""/g, '"').trim();
                     let cn = cols[1].replace(/^"|"$/g, '').replace(/""/g, '"').trim();
 
-                    // 忽略標題列
                     if (index === 0 && (en.toLowerCase() === '英文' || en.toLowerCase() === 'english')) {
                         return;
                     }
@@ -522,7 +519,30 @@
             
             const link = document.createElement("a");
             link.setAttribute("href", url);
-            link.setAttribute("download", `口袋單字本備份_${new Date().toISOString().slice(0,10)}.csv`); document.body.appendChild(link); link.click(); document.body.removeChild(link);  showToast("成功匯出 CSV 備份檔！", "success"); }  // 手動匯入本機 CSV 檔 function importFromCSV(event) { const file = event.target.files[0]; if (!file) return;  const reader = new FileReader(); reader.onload = function(e) { try { const newWords = parseCSVText(e.target.result);  if (newWords.length === 0) { showToast("無法解析 CSV 內容，請確認格式正確", "info"); return; }  const mode = window.confirm(`成功讀取到 ${newWords.length} 個單字！\n\n【確定】= 合併至現有單字本\n【取消】= 覆蓋現有單字本`);
+            link.setAttribute("download", `口袋單字本備份_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showToast("成功匯出 CSV 備份檔！", "success");
+        }
+
+        // 手動匯入本機 CSV 檔
+        function importFromCSV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const newWords = parseCSVText(e.target.result);
+
+                    if (newWords.length === 0) {
+                        showToast("無法解析 CSV 內容，請確認格式正確", "info");
+                        return;
+                    }
+
+                    const mode = window.confirm(`成功讀取到 ${newWords.length} 個單字！\n\n【確定】= 合併至現有單字本\n【取消】= 覆蓋現有單字本`);
                     
                     if (mode) {
                         vocabList = [...newWords, ...vocabList];
@@ -532,7 +552,43 @@
 
                     saveVocabToStorage();
                     renderWordList();
-                    showToast(`已成功匯入 ${newWords.length} 個單字！`, "success");  } catch (err) { console.error(err); showToast("讀取檔案失敗，請檢查 CSV 格式", "info"); } event.target.value = ''; };  reader.readAsText(file, "UTF-8"); }  // 從 GitHub 同目錄自動讀取 words.csv 並智慧合併（不重複） async function loadFromGitHubCSV(isManual = false) { try { // 加上時間戳記避免手機瀏覽器快取舊檔 const response = await fetch('./words.csv?t=' + new Date().getTime()); if (!response.ok) { if (isManual) showToast("GitHub 上找不到 words.csv 檔案", "info"); return; }  const csvText = await response.text(); const remoteWords = parseCSVText(csvText);  if (remoteWords.length === 0) { if (isManual) showToast("words.csv 裡面沒有有效單字", "info"); return; }  // 過濾掉已經存在於本地單字庫的英文單字（避免每次開網頁重複疊加） const existingSet = new Set(vocabList.map(w => w.en.toLowerCase())); const trulyNewWords = remoteWords.filter(w => !existingSet.has(w.en.toLowerCase()));  if (trulyNewWords.length > 0) { vocabList = [...trulyNewWords, ...vocabList]; saveVocabToStorage(); renderWordList(); showToast(`已從 GitHub 同步 ${trulyNewWords.length} 個新單字！`, "success");
+                    showToast(`已成功匯入 ${newWords.length} 個單字！`, "success");
+
+                } catch (err) {
+                    console.error(err);
+                    showToast("讀取檔案失敗，請檢查 CSV 格式", "info");
+                }
+                event.target.value = '';
+            };
+
+            reader.readAsText(file, "UTF-8");
+        }
+
+        // 從 GitHub 同目錄自動讀取 words.csv 並智慧合併（不重複）
+        async function loadFromGitHubCSV(isManual = false) {
+            try {
+                const response = await fetch('./words.csv?t=' + new Date().getTime());
+                if (!response.ok) {
+                    if (isManual) showToast("GitHub 上找不到 words.csv 檔案", "info");
+                    return;
+                }
+                
+                const csvText = await response.text();
+                const remoteWords = parseCSVText(csvText);
+
+                if (remoteWords.length === 0) {
+                    if (isManual) showToast("words.csv 裡面沒有有效單字", "info");
+                    return;
+                }
+
+                const existingSet = new Set(vocabList.map(w => w.en.toLowerCase()));
+                const trulyNewWords = remoteWords.filter(w => !existingSet.has(w.en.toLowerCase()));
+
+                if (trulyNewWords.length > 0) {
+                    vocabList = [...trulyNewWords, ...vocabList];
+                    saveVocabToStorage();
+                    renderWordList();
+                    showToast(`已從 GitHub 同步 ${trulyNewWords.length} 個新單字！`, "success");
                 } else if (isManual) {
                     showToast("單字庫已是最新狀態，無新增單字", "info");
                 }
