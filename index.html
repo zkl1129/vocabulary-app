@@ -575,6 +575,20 @@
 
             reader.readAsText(file, "UTF-8");
         }
+        async function loadFromGitHubCSV() {
+          try {
+            // 加上時間戳記 (?t=...) 避免手機瀏覽器快取到舊的檔案
+            const response = await fetch('./words.csv?t=' + new Date().getTime());
+            if (!response.ok) throw new Error('找不到 words.csv 檔案');
+            
+            const csvText = await response.text();
+            // 接著呼叫原本的 CSV 解析函式，把文字轉成單字陣列並存入畫面即可
+            parseAndMergeCSV(csvText); 
+            alert('已成功從 GitHub 同步最新單字！');
+          } catch (error) {
+            console.error('讀取失敗:', error);
+          }
+        }      
     </script>
 </body>
 </html>
